@@ -1,0 +1,27 @@
+name: Tägliches Morgenbriefing
+
+on:
+  schedule:
+    # Ein Start pro Tag, sicher VOR 6 Uhr Berliner Zeit (Sommer wie Winter):
+    # 03:45 UTC = 05:45 Sommerzeit bzw. 04:45 Winterzeit.
+    # Das Skript baut das Briefing fertig und wartet dann punktgenau bis 06:00.
+    - cron: "45 3 * * *"
+  workflow_dispatch: {}   # Knopf zum manuellen Testen (sendet sofort)
+
+jobs:
+  briefing:
+    runs-on: ubuntu-latest
+    timeout-minutes: 100   # genug Puffer fürs Warten bis 6 Uhr (im Winter bis ~75 Min.)
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - run: python briefing.py
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          FROM_EMAIL: ${{ secrets.FROM_EMAIL }}
+          TO_EMAIL: ${{ secrets.TO_EMAIL }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
