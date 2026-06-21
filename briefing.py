@@ -112,32 +112,42 @@ def candidates_text(items):
     return "\n".join(lines)
 
 
-def _parse_json(text):
-    """Holt robust ein JSON-Objekt aus Claudes Antwort (entfernt Zäune, Kommentare, Trailing-Kommas)."""
-    t = text.strip()
-    if t.startswith("```"):
-        t = t.strip("`")
-        if t[:4].lower() == "json":
-            t = t[4:]
-    a, b = t.find("{"), t.rfind("}")
-    if a < 0 or b < 0:
-        raise RuntimeError("Keine JSON-Antwort erhalten:\n" + text[:800])
-    t = t[a:b + 1]
-    t = re.sub(r"(?<!:)//[^\n]*", "", t)     # //-Kommentare raus, "https://" bleibt heil
-    t = re.sub(r",\s*([}\]])", r"\1", t)      # überzählige Kommata vor } oder ] raus
-    try:
-        return json.loads(t)
-    except json.JSONDecodeError:
-        print("[fehler] JSON nicht lesbar. Bereinigter Rohtext:\n" + t[:1200], file=sys.stderr)
-        raise
-
-
 def call_claude(items):
     """Schickt das Rohmaterial an Claude und bekommt das kuratierte Briefing als JSON zurück."""
     today = datetime.datetime.now(TIMEZONE).strftime("%A, %d. %B %Y")
     user = (f"Heutiges Datum: {today}.\n\n"
             f"Hier sind die aktuellen Meldungen als Rohmaterial. Kuratiere daraus das "
             f"TACHELES.-Briefing nach deinen Regeln:\n\n{candidates_text(items)}")
+    tool = {
+        "name": "briefing",
+        "description": "Gibt das fertig kuratierte Morgenbriefing strukturiert zurück.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "lage": {"type": "array", "items": {"type": "string"}},
+                "aufmacher": {"type": "object", "properties": {
+                    "kicker": {"type": "string"}, "headline": {"type": "string"},
+                    "body": {"type": "string"}, "take": {"type": "string"},
+                    "quelle": {"type": "string"}, "url": {"type": "string"}},
+                    "required": ["headline", "body", "take"]},
+                "maerkte": {"type": "array", "items": {"type": "object", "properties": {
+                    "headline": {"type": "string"}, "body": {"type": "string"},
+                    "quelle": {"type": "string"}, "url": {"type": "string"}},
+                    "required": ["headline", "body"]}},
+                "welt": {"type": "array", "items": {"type": "object", "properties": {
+                    "headline": {"type": "string"}, "body": {"type": "string"},
+                    "take": {"type": "string"}, "quelle": {"type": "string"},
+                    "url": {"type": "string"}}, "required": ["headline", "body"]}},
+                "schwarm": {"type": "object", "properties": {
+                    "body": {"type": "string"}, "take": {"type": "string"},
+                    "quelle": {"type": "string"}, "url": {"type": "string"}}},
+                "sport": {"type": "object", "properties": {
+                    "headline": {"type": "string"}, "body": {"type": "string"},
+                    "quelle": {"type": "string"}, "url": {"type": "string"}}},
+            },
+            "required": ["lage", "aufmacher", "maerkte", "welt"],
+        },
+    }
     resp = requests.post(
         "https://api.anthropic.com/v1/messages",
         headers={
@@ -151,13 +161,17 @@ def call_claude(items):
             "temperature": 0,
             "system": SYSTEM_PROMPT,
             "messages": [{"role": "user", "content": user}],
+            "tools": [tool],
+            "tool_choice": {"type": "tool", "name": "briefing"},
         },
         timeout=120,
     )
     resp.raise_for_status()
     data = resp.json()
-    text = "".join(b.get("text", "") for b in data.get("content", []) if b.get("type") == "text")
-    return _parse_json(text)
+    for block in data.get("content", []):
+        if block.get("type") == "tool_use" and block.get("name") == "briefing":
+            return block["input"]
+    raise RuntimeError("Keine strukturierte Antwort erhalten:\n" + json.dumps(data)[:800])
 
 
 # ------------------------------------------------------------- E-MAIL-RENDER
