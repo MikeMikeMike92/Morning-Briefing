@@ -66,8 +66,10 @@ Struktur (genau diese Schlüssel):
  "schwarm": {"body":"", "take":"", "quelle":"", "url":""},
  "sport": {"headline":"", "body":"", "quelle":"", "url":""}
 }
-Umfang: "lage" genau 4 kurze Zeilen; "maerkte" 2–4 Einträge; "welt" 3–5 Einträge;
-"schwarm" und "sport" sind optional — leer lassen, wenn nichts wirklich Starkes da ist.
+Umfang — fülle das Briefing SUBSTANZIELL und nutze das vorhandene Material aus:
+"lage" genau 4 Zeilen; "aufmacher" mit 2–4 Sätzen im body; "maerkte" 3–4 Einträge;
+"welt" 4–6 Einträge; "schwarm" füllen, sobald Social-/Reddit-Material vorhanden ist;
+"sport" als Schlusspunkt, wenn es etwas hergibt. Jeder body 1–3 Sätze, nie nur ein Halbsatz.
 """
 
 # --------------------------------------------------------------- FUNKTIONEN
@@ -157,7 +159,7 @@ def call_claude(items):
         },
         json={
             "model": MODEL,
-            "max_tokens": 4000,
+            "max_tokens": 5000,
             "temperature": 0,
             "system": SYSTEM_PROMPT,
             "messages": [{"role": "user", "content": user}],
@@ -197,48 +199,48 @@ def src_link(item):
     item = as_dict(item)
     url, quelle = as_str(item.get("url")), as_str(item.get("quelle"))
     if url:
-        return (f' <a href="{esc(url)}" style="color:#9a968c;text-decoration:none;'
-                f'border-bottom:1px solid #ddd">{esc(quelle or "Quelle")} ↗</a>')
+        return (f' <a href="{esc(url)}" style="color:#b9b4a8;text-decoration:none;'
+                f'border-bottom:1px solid #3a3a42">{esc(quelle or "Quelle")} ↗</a>')
     if quelle:
-        return f' <span style="color:#9a968c">{esc(quelle)}</span>'
+        return f' <span style="color:#948f85">{esc(quelle)}</span>'
     return ""
 
 def take_box(text):
     text = as_str(text)
     if not text:
         return ""
-    return (f'<div style="border-left:3px solid #ff4326;background:#fdeee9;padding:10px 14px;'
-            f'margin:12px 0 0;border-radius:0 4px 4px 0">'
-            f'<div style="font:700 10px Arial,sans-serif;letter-spacing:.16em;color:#ff4326;'
-            f'margin-bottom:4px">DER TAKE</div>'
-            f'<div style="font:italic 16px Georgia,serif;color:#1a1a1a;line-height:1.4">{esc(text)}</div></div>')
+    return (f'<div style="border-left:3px solid #ff4326;background:#241310;padding:12px 16px;'
+            f'margin:14px 0 0">'
+            f'<div style="font:700 10px Arial,sans-serif;letter-spacing:.18em;color:#ff6b54;'
+            f'margin-bottom:5px">DER TAKE</div>'
+            f'<div style="font:italic 16px Georgia,serif;color:#f0ece2;line-height:1.45">{esc(text)}</div></div>')
 
 def kicker(label, rep=""):
-    extra = (f'<span style="color:#9a968c;font-weight:600;letter-spacing:.1em"> — {esc(rep)}</span>'
+    extra = (f'<span style="color:#948f85;font-weight:600;letter-spacing:.1em"> — {esc(rep)}</span>'
              if rep else "")
-    return (f'<div style="font:700 12px Arial,sans-serif;letter-spacing:.16em;color:#ff4326;'
-            f'text-transform:uppercase;margin:30px 0 12px;border-bottom:1px solid #e7e3d8;'
+    return (f'<div style="font:700 12px Arial,sans-serif;letter-spacing:.18em;color:#ff4326;'
+            f'text-transform:uppercase;margin:34px 0 14px;border-bottom:1px solid #2c2c33;'
             f'padding-bottom:8px">{esc(label)}{extra}</div>')
 
 def item_block(it, with_take=False):
     it = _item(it)
     head, body, take = as_str(it.get("headline")), as_str(it.get("body")), as_str(it.get("take"))
-    h = (f'<div style="font:700 18px Arial,sans-serif;color:#111;text-transform:uppercase;'
+    h = (f'<div style="font:700 19px Arial,sans-serif;color:#f3efe6;text-transform:uppercase;'
          f'margin:0 0 6px">{esc(head)}</div>') if head else ""
-    p = (f'<div style="font:16px/1.5 Georgia,serif;color:#2a2a2a">{esc(body)}'
+    p = (f'<div style="font:16px/1.55 Georgia,serif;color:#cdc7bb">{esc(body)}'
          f'{src_link(it)}</div>')
     mt = ""
     if with_take and take:
-        mt = (f'<div style="font:italic 15px Georgia,serif;color:#777;margin-top:6px">'
+        mt = (f'<div style="font:italic 15px Georgia,serif;color:#948f85;margin-top:6px">'
               f'{esc(take)}</div>')
-    return f'<div style="padding:14px 0;border-top:1px solid #eee">{h}{p}{mt}</div>'
+    return f'<div style="padding:15px 0;border-top:1px solid #23232a">{h}{p}{mt}</div>'
 
 def render_email(d):
     d = as_dict(d)
     today = datetime.datetime.now(TIMEZONE).strftime("%A · %d. %B %Y")
 
     lage = "".join(
-        f'<li style="margin:0 0 8px;padding-left:16px;position:relative;font:16px/1.4 Georgia,serif">'
+        f'<li style="margin:0 0 9px;padding-left:18px;position:relative;font:16px/1.45 Georgia,serif;color:#e7e2d7">'
         f'<span style="position:absolute;left:0;top:8px;width:6px;height:6px;background:#ff4326;'
         f'display:inline-block"></span>{esc(x)}</li>'
         for x in as_list(d.get("lage")) if as_str(x)
@@ -248,9 +250,9 @@ def render_email(d):
     head, body = as_str(auf.get("headline")), as_str(auf.get("body"))
     aufmacher = ((
         kicker("Aufmacher", as_str(auf.get("kicker"))) +
-        (f'<div style="font:700 30px/1.05 Arial,sans-serif;color:#111;text-transform:uppercase;'
+        (f'<div style="font:800 30px/1.05 Arial,Helvetica,sans-serif;color:#f6f2e9;text-transform:uppercase;'
          f'margin:0 0 12px">{esc(head)}</div>' if head else "") +
-        f'<div style="font:18px/1.55 Georgia,serif;color:#222">{esc(body)}{src_link(auf)}</div>'
+        f'<div style="font:18px/1.55 Georgia,serif;color:#d8d2c6">{esc(body)}{src_link(auf)}</div>'
         + take_box(auf.get("take"))
     ) if (head or body) else "")
 
@@ -266,8 +268,8 @@ def render_email(d):
     sw = _item(d.get("schwarm"))
     if as_str(sw.get("body")):
         schwarm = (kicker("Der Schwarm · Reddit") +
-                   f'<div style="background:#fafafa;border:1px solid #eee;border-radius:6px;padding:18px">'
-                   f'<div style="font:16px/1.55 Georgia,serif;color:#222">{esc(as_str(sw.get("body")))}{src_link(sw)}</div>'
+                   f'<div style="background:#16161a;border:1px solid #2c2c33;padding:18px">'
+                   f'<div style="font:16px/1.55 Georgia,serif;color:#d8d2c6">{esc(as_str(sw.get("body")))}{src_link(sw)}</div>'
                    + take_box(sw.get("take")) + "</div>")
 
     sport = ""
@@ -276,30 +278,30 @@ def render_email(d):
         sport = kicker("Schlusspunkt") + item_block(sp)
 
     return f"""\
-<!DOCTYPE html><html><body style="margin:0;background:#f4f1ea">
-<div style="max-width:600px;margin:0 auto;background:#fffdf8;padding:28px 26px 36px;
-            font-family:Georgia,serif;color:#1a1a1a">
-  <div style="font:700 11px Arial,sans-serif;letter-spacing:.14em;text-transform:uppercase;
-              color:#9a968c;margin-bottom:14px">Morgenbriefing · Ausgabe</div>
-  <div style="font:700 48px Arial,sans-serif;letter-spacing:-.5px;text-transform:uppercase;color:#111">
-     TACHELES<span style="color:#ff4326">.</span></div>
-  <div style="border-top:3px solid #111;margin-top:10px;padding-top:8px;
-              font:600 12px Arial,sans-serif;letter-spacing:.1em;text-transform:uppercase;color:#9a968c">
+<!DOCTYPE html><html><body style="margin:0;background:#0c0c0e">
+<div style="max-width:600px;margin:0 auto;background:#0c0c0e;padding:28px 24px 40px;
+            font-family:Georgia,serif;color:#f3efe6">
+  <div style="font:700 11px Arial,sans-serif;letter-spacing:.16em;text-transform:uppercase;
+              color:#948f85;margin-bottom:14px">Morgenbriefing · Ausgabe</div>
+  <div style="font:900 50px Arial,Helvetica,sans-serif;letter-spacing:-1px;text-transform:uppercase;
+              color:#f6f2e9;line-height:.9">TACHELES<span style="color:#ff4326">.</span></div>
+  <div style="border-top:3px solid #f6f2e9;margin-top:12px;padding-top:9px;
+              font:700 12px Arial,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#948f85">
      {esc(today)}</div>
-  <div style="font:italic 19px Georgia,serif;color:#1a1a1a;margin:18px 0 0">
+  <div style="font:italic 19px Georgia,serif;color:#e7e2d7;margin:18px 0 0">
      Die Welt vor dem ersten Espresso — kuratiert, eingeordnet, ohne Beruhigungspille.</div>
 
-  <div style="border:1px solid #e7e3d8;border-radius:4px;padding:16px 18px;margin-top:22px">
-     <div style="font:700 11px Arial,sans-serif;letter-spacing:.16em;text-transform:uppercase;
-                 color:#9a968c;margin-bottom:10px">Die Lage in 30 Sekunden</div>
+  <div style="border:1px solid #2c2c33;padding:16px 18px;margin-top:24px">
+     <div style="font:700 11px Arial,sans-serif;letter-spacing:.18em;text-transform:uppercase;
+                 color:#948f85;margin-bottom:11px">Die Lage in 30 Sekunden</div>
      <ul style="list-style:none;margin:0;padding:0">{lage}</ul>
   </div>
 
   {aufmacher}{maerkte}{welt}{schwarm}{sport}
 
-  <div style="margin-top:34px;border-top:1px solid #e7e3d8;padding-top:16px;
-              font:12px/1.6 Arial,sans-serif;color:#9a968c">
-     <b style="color:#444">TACHELES.</b> ist ein automatisch erzeugtes Briefing. Die „Takes" sind die
+  <div style="margin-top:38px;border-top:1px solid #2c2c33;padding-top:16px;
+              font:12px/1.6 Arial,sans-serif;color:#948f85">
+     <b style="color:#cdc7bb">TACHELES.</b> ist ein automatisch erzeugtes Briefing. Die „Takes" sind die
      redaktionelle Stimme des Produkts — keine Anlage- oder Wahlempfehlung. Der Märkte-Teil berichtet,
      er rät nicht zum Kauf oder Verkauf. Fakten in eigenen Worten zusammengefasst, Quellen verlinkt.
   </div>
@@ -320,6 +322,8 @@ def send_email(html_body):
         },
         timeout=60,
     )
+    if r.status_code >= 400:
+        print(f"[fehler] Resend antwortete {r.status_code}: {r.text[:600]}", file=sys.stderr)
     r.raise_for_status()
     print("[ok] E-Mail verschickt:", r.json().get("id", ""))
 
