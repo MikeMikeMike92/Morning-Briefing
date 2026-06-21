@@ -175,16 +175,36 @@ def call_claude(items):
 
 
 # ------------------------------------------------------------- E-MAIL-RENDER
+def as_dict(x):
+    return x if isinstance(x, dict) else {}
+
+def as_list(x):
+    if isinstance(x, list):
+        return x
+    return [] if x in (None, "") else [x]
+
+def as_str(x):
+    return "" if (x is None or isinstance(x, (dict, list))) else str(x)
+
+def _item(x):
+    """Jeder Eintrag wird zu einem dict (ein blanker String wird zum Fließtext)."""
+    return x if isinstance(x, dict) else {"body": as_str(x)}
+
 def esc(s):
-    return html.escape(str(s or ""))
+    return html.escape(as_str(s))
 
 def src_link(item):
-    if item.get("url"):
-        return (f' <a href="{esc(item["url"])}" style="color:#9a968c;text-decoration:none;'
-                f'border-bottom:1px solid #ddd">{esc(item.get("quelle","Quelle"))} ↗</a>')
-    return f' <span style="color:#9a968c">{esc(item.get("quelle",""))}</span>'
+    item = as_dict(item)
+    url, quelle = as_str(item.get("url")), as_str(item.get("quelle"))
+    if url:
+        return (f' <a href="{esc(url)}" style="color:#9a968c;text-decoration:none;'
+                f'border-bottom:1px solid #ddd">{esc(quelle or "Quelle")} ↗</a>')
+    if quelle:
+        return f' <span style="color:#9a968c">{esc(quelle)}</span>'
+    return ""
 
 def take_box(text):
+    text = as_str(text)
     if not text:
         return ""
     return (f'<div style="border-left:3px solid #ff4326;background:#fdeee9;padding:10px 14px;'
@@ -201,51 +221,58 @@ def kicker(label, rep=""):
             f'padding-bottom:8px">{esc(label)}{extra}</div>')
 
 def item_block(it, with_take=False):
+    it = _item(it)
+    head, body, take = as_str(it.get("headline")), as_str(it.get("body")), as_str(it.get("take"))
     h = (f'<div style="font:700 18px Arial,sans-serif;color:#111;text-transform:uppercase;'
-         f'margin:0 0 6px">{esc(it.get("headline",""))}</div>')
-    p = (f'<div style="font:16px/1.5 Georgia,serif;color:#2a2a2a">{esc(it.get("body",""))}'
+         f'margin:0 0 6px">{esc(head)}</div>') if head else ""
+    p = (f'<div style="font:16px/1.5 Georgia,serif;color:#2a2a2a">{esc(body)}'
          f'{src_link(it)}</div>')
     mt = ""
-    if with_take and it.get("take"):
+    if with_take and take:
         mt = (f'<div style="font:italic 15px Georgia,serif;color:#777;margin-top:6px">'
-              f'{esc(it["take"])}</div>')
+              f'{esc(take)}</div>')
     return f'<div style="padding:14px 0;border-top:1px solid #eee">{h}{p}{mt}</div>'
 
 def render_email(d):
+    d = as_dict(d)
     today = datetime.datetime.now(TIMEZONE).strftime("%A · %d. %B %Y")
 
     lage = "".join(
         f'<li style="margin:0 0 8px;padding-left:16px;position:relative;font:16px/1.4 Georgia,serif">'
         f'<span style="position:absolute;left:0;top:8px;width:6px;height:6px;background:#ff4326;'
         f'display:inline-block"></span>{esc(x)}</li>'
-        for x in d.get("lage", [])
+        for x in as_list(d.get("lage")) if as_str(x)
     )
 
-    auf = d.get("aufmacher", {}) or {}
-    aufmacher = (
-        kicker("Aufmacher", auf.get("kicker", "")) +
-        f'<div style="font:700 30px/1.05 Arial,sans-serif;color:#111;text-transform:uppercase;'
-        f'margin:0 0 12px">{esc(auf.get("headline",""))}</div>'
-        f'<div style="font:18px/1.55 Georgia,serif;color:#222">{esc(auf.get("body",""))}{src_link(auf)}</div>'
-        + take_box(auf.get("take", ""))
-    ) if auf else ""
+    auf = _item(d.get("aufmacher"))
+    head, body = as_str(auf.get("headline")), as_str(auf.get("body"))
+    aufmacher = ((
+        kicker("Aufmacher", as_str(auf.get("kicker"))) +
+        (f'<div style="font:700 30px/1.05 Arial,sans-serif;color:#111;text-transform:uppercase;'
+         f'margin:0 0 12px">{esc(head)}</div>' if head else "") +
+        f'<div style="font:18px/1.55 Georgia,serif;color:#222">{esc(body)}{src_link(auf)}</div>'
+        + take_box(auf.get("take"))
+    ) if (head or body) else "")
 
+    maerkte_items = [_item(x) for x in as_list(d.get("maerkte"))]
     maerkte = (kicker("Märkte & Geld", "Bericht, kein Rat") +
-               "".join(item_block(it) for it in d.get("maerkte", []))) if d.get("maerkte") else ""
+               "".join(item_block(it) for it in maerkte_items)) if maerkte_items else ""
+
+    welt_items = [_item(x) for x in as_list(d.get("welt"))]
     welt = (kicker("Welt") +
-            "".join(item_block(it, with_take=True) for it in d.get("welt", []))) if d.get("welt") else ""
+            "".join(item_block(it, with_take=True) for it in welt_items)) if welt_items else ""
 
     schwarm = ""
-    sw = d.get("schwarm") or {}
-    if sw.get("body"):
+    sw = _item(d.get("schwarm"))
+    if as_str(sw.get("body")):
         schwarm = (kicker("Der Schwarm · Reddit") +
                    f'<div style="background:#fafafa;border:1px solid #eee;border-radius:6px;padding:18px">'
-                   f'<div style="font:16px/1.55 Georgia,serif;color:#222">{esc(sw.get("body",""))}{src_link(sw)}</div>'
-                   + take_box(sw.get("take", "")) + "</div>")
+                   f'<div style="font:16px/1.55 Georgia,serif;color:#222">{esc(as_str(sw.get("body")))}{src_link(sw)}</div>'
+                   + take_box(sw.get("take")) + "</div>")
 
     sport = ""
-    sp = d.get("sport") or {}
-    if sp.get("headline"):
+    sp = _item(d.get("sport"))
+    if as_str(sp.get("headline")) or as_str(sp.get("body")):
         sport = kicker("Schlusspunkt") + item_block(sp)
 
     return f"""\
