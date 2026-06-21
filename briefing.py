@@ -10,7 +10,7 @@ Läuft als GitHub-Action jeden Morgen. Braucht 4 Secrets (siehe README):
   ANTHROPIC_API_KEY, RESEND_API_KEY, FROM_EMAIL, TO_EMAIL
 """
 
-import os, sys, json, html, time, datetime, urllib.request
+import os, sys, json, re, html, time, datetime, urllib.request
 from zoneinfo import ZoneInfo
 import feedparser
 import requests
@@ -48,18 +48,26 @@ HARTE REGELN:
 - Fasse jede Meldung in EIGENEN Worten zusammen (kein Abschreiben), je 1–3 Sätze.
 - Der Märkte-Teil BERICHTET nur (was Notenbanken, Analysten, der Schwarm sagen) — er gibt
   KEINE Kauf-/Verkaufsempfehlung. Keine Anlageberatung, nirgends.
-- „take" ist eine einzige pointierte Meinungszeile in der Haus-Stimme (Fakt und Meinung trennen).
+- "take" ist eine einzige pointierte Meinungszeile in der Haus-Stimme (Fakt und Meinung trennen).
 - Wähle hart aus: nur die wirklich wichtigen Themen. Filtern ist die Aufgabe.
 
-Antworte AUSSCHLIESSLICH mit einem JSON-Objekt, ohne Markdown, in genau dieser Struktur:
+AUSGABEFORMAT — sehr wichtig:
+- Antworte mit GÜLTIGEM JSON: kein Text davor oder danach, KEINE Kommentare, KEINE //-Zeilen,
+  KEIN ```-Codeblock.
+- Für Anführungszeichen INNERHALB der Texte nutze immer typografische „ und " —
+  niemals gerade Zoll-Zeichen, sonst zerbricht das JSON.
+
+Struktur (genau diese Schlüssel):
 {
- "lage": ["4 ultrakurze Bullet-Zeilen zur Gesamtlage"],
+ "lage": ["", "", "", ""],
  "aufmacher": {"kicker":"", "headline":"", "body":"", "take":"", "quelle":"", "url":""},
- "maerkte": [{"headline":"", "body":"", "quelle":"", "url":""}],   // 2-4 Stück, Bericht
- "welt":    [{"headline":"", "body":"", "take":"", "quelle":"", "url":""}],  // 3-5 Stück
- "schwarm": {"body":"", "take":"", "quelle":"", "url":""},          // Reddit/Social-Hype, optional
- "sport":   {"headline":"", "body":"", "quelle":"", "url":""}       // optional, ein Schlusspunkt
+ "maerkte": [{"headline":"", "body":"", "quelle":"", "url":""}],
+ "welt": [{"headline":"", "body":"", "take":"", "quelle":"", "url":""}],
+ "schwarm": {"body":"", "take":"", "quelle":"", "url":""},
+ "sport": {"headline":"", "body":"", "quelle":"", "url":""}
 }
+Umfang: "lage" genau 4 kurze Zeilen; "maerkte" 2–4 Einträge; "welt" 3–5 Einträge;
+"schwarm" und "sport" sind optional — leer lassen, wenn nichts wirklich Starkes da ist.
 """
 
 # --------------------------------------------------------------- FUNKTIONEN
@@ -104,6 +112,26 @@ def candidates_text(items):
     return "\n".join(lines)
 
 
+def _parse_json(text):
+    """Holt robust ein JSON-Objekt aus Claudes Antwort (entfernt Zäune, Kommentare, Trailing-Kommas)."""
+    t = text.strip()
+    if t.startswith("```"):
+        t = t.strip("`")
+        if t[:4].lower() == "json":
+            t = t[4:]
+    a, b = t.find("{"), t.rfind("}")
+    if a < 0 or b < 0:
+        raise RuntimeError("Keine JSON-Antwort erhalten:\n" + text[:800])
+    t = t[a:b + 1]
+    t = re.sub(r"(?<!:)//[^\n]*", "", t)     # //-Kommentare raus, "https://" bleibt heil
+    t = re.sub(r",\s*([}\]])", r"\1", t)      # überzählige Kommata vor } oder ] raus
+    try:
+        return json.loads(t)
+    except json.JSONDecodeError:
+        print("[fehler] JSON nicht lesbar. Bereinigter Rohtext:\n" + t[:1200], file=sys.stderr)
+        raise
+
+
 def call_claude(items):
     """Schickt das Rohmaterial an Claude und bekommt das kuratierte Briefing als JSON zurück."""
     today = datetime.datetime.now(TIMEZONE).strftime("%A, %d. %B %Y")
@@ -119,7 +147,8 @@ def call_claude(items):
         },
         json={
             "model": MODEL,
-            "max_tokens": 3000,
+            "max_tokens": 4000,
+            "temperature": 0,
             "system": SYSTEM_PROMPT,
             "messages": [{"role": "user", "content": user}],
         },
@@ -128,10 +157,7 @@ def call_claude(items):
     resp.raise_for_status()
     data = resp.json()
     text = "".join(b.get("text", "") for b in data.get("content", []) if b.get("type") == "text")
-    a, b = text.find("{"), text.rfind("}")
-    if a < 0 or b < 0:
-        raise RuntimeError("Keine JSON-Antwort von Claude erhalten:\n" + text[:500])
-    return json.loads(text[a:b + 1])
+    return _parse_json(text)
 
 
 # ------------------------------------------------------------- E-MAIL-RENDER
